@@ -10,7 +10,7 @@
 #include <SPI.h>         // COMMENT OUT THIS LINE FOR GEMMA OR TRINKET
 //#include <avr/power.h> // ENABLE THIS LINE FOR GEMMA OR TRINKET
 
-#define NUMPIXELS 26 // Number of LEDs in strip
+#define NUM_PIXELS 26 // Number of LEDs in strip
 //#define LED_PIN 13
 
 #define RANDOM_COLOR { random(0xAAFFCC)}
@@ -19,7 +19,7 @@
 #define DATAPIN    11 //green wire
 #define CLOCKPIN   13 //yellow wire
 Adafruit_DotStar strip = Adafruit_DotStar(
-  NUMPIXELS, DATAPIN, CLOCKPIN, DOTSTAR_BRG);
+  NUM_PIXELS, DATAPIN, CLOCKPIN, DOTSTAR_BRG);
 // The last parameter is optional -- this is the color data order of the
 // DotStar strip, which has changed over time in different production runs.
 // Your code just uses R,G,B colors, the library then reassigns as needed.
@@ -27,7 +27,7 @@ Adafruit_DotStar strip = Adafruit_DotStar(
 
 // Hardware SPI is a little faster, but must be wired to specific pins
 // (Arduino Uno = pin 11 for data, 13 for clock, other boards are different).
-//Adafruit_DotStar strip = Adafruit_DotStar(NUMPIXELS, DOTSTAR_BRG);
+//Adafruit_DotStar strip = Adafruit_DotStar(NUM_PIXELS, DOTSTAR_BRG);
 
 void setup() {
 
@@ -43,29 +43,23 @@ void setup() {
 
 // Runs 10 LEDs at a time along strip, cycling through red, green and blue.
 // This requires about 200 mA for all the 'on' pixels + 1 mA per 'off' pixel.
-
-int      head  = 0, tail = 1-NUMPIXELS; // Index of first 'on' and 'off' pixels
+int      head  = 0, tail = 1-NUM_PIXELS; // Index of first 'on' and 'off' pixels
 uint32_t color = 0xFF0000;      // 'On' color (starts red)
 
-#define MAX_RAND  50
-#define DELAY_MAX   150
+#define DELAY_MAX   100
 #define DELAY_MIN   5
 int ms_delay = ((DELAY_MAX - DELAY_MIN) / 2 ) + DELAY_MIN;
-int delay_increment = (DELAY_MAX - DELAY_MIN) / NUMPIXELS;
+int delay_increment = (DELAY_MAX - DELAY_MIN) / NUM_PIXELS;
 
-//this is our array of pixels that is manupulated and then sent out
-int pixels_arr[NUMPIXELS];
-#define UPSCALER  4 //numver of virtual pixels per real pixel
-int virtual_arr[NUMPIXELS * UPSCALER];
 
-void sendPixelArray(){
-  static int curr_pixels[NUMPIXELS];
+void sendPixelArray(int * send_arr){
+  static int curr_pixels[NUM_PIXELS];
   //loop over all pixels in array
-  for (int i = 0; i < NUMPIXELS; i++){
+  for (int i = 0; i < NUM_PIXELS; i++){
     //if pixel changed, then update it and update our static array
-    if(curr_pixels[i] != pixels_arr[i]){
-      curr_pixels[i] = pixels_arr[i];
-      strip.setPixelColor(i, pixels_arr[i]);
+    if(curr_pixels[i] != send_arr[i]){
+      curr_pixels[i] = send_arr[i];
+      strip.setPixelColor(i, send_arr[i]);
     }
   }
   strip.show();                     // Refresh strip
@@ -121,53 +115,65 @@ void InitiatePulse( int* arr, int num_pixels){
 
 #define COUNTER_MAX 6
 //This just moves the pixels down the array 
-void StripPropagateBasic(){
-  static int counter = 0;
+void StripPropagateBasic(int* arr){
     //move the entire array up one
-  for(int i = NUMPIXELS-1; i >0; i--){
-    pixels_arr[i] = pixels_arr[i-1];
+  for(int i = NUM_PIXELS-1; i >0; i--){
+    arr[i] = arr[i-1];
   }
-  pixels_arr[0] = 0;
-  if(counter++ >=COUNTER_MAX ) {
-    InitiatePulse(pixels_arr, 2);
-    counter = random(COUNTER_MAX);
-  }
-//  ms_delay = UpdateDelay(ms_delay);
-  sendPixelArray();
-  delay(ms_delay); //pause between loops
+ arr[0] = 0; //clear out the 0th pixel
 }
 
 
 //initial pattern where one color fills the fan blades fully, then another color chases it out
 void ColorChaserBasic(){
-  int color_increment = MAX_RAND - random(MAX_RAND);
+  while(1){
+    int color_increment = MAX_RAND - random(MAX_RAND);
+    
+  //  Serial.println("A");
+    strip.setPixelColor(head, color); // 'On' pixel at head
+    strip.setPixelColor(tail, 0);     // 'Off' pixel at tail
+    strip.show();                     // Refresh strip
+    delay(ms_delay);                        // Pause 20 milliseconds (~50 FPS)
   
-//  Serial.println("A");
-  strip.setPixelColor(head, color); // 'On' pixel at head
-  strip.setPixelColor(tail, 0);     // 'Off' pixel at tail
-  strip.show();                     // Refresh strip
-  delay(ms_delay);                        // Pause 20 milliseconds (~50 FPS)
-
-   ms_delay += delay_increment;
-//   delay_increment+=2;
-//   if(ms_delay > DELAY_MAX){
-//    delay_increment = -1*delay_increment;
-//   }else if(ms_delay < DELAY_MIN){
-//    delay_increment = -1*delay_increment;
-//   }
-  
-  if(++head >= NUMPIXELS) {         // Increment head index.  Off end of strip?
-    head = 0;                       //  Yes, reset head index to start
-//    if((color >>= 8) == 0)          //  Next color (R->G->B) ... past blue now?
-      color = RANDOM_COLOR ;            //   Yes, reset to red
-      ms_delay = DELAY_MIN;
+     ms_delay += delay_increment;
+  //   delay_increment+=2;
+  //   if(ms_delay > DELAY_MAX){
+  //    delay_increment = -1*delay_increment;
+  //   }else if(ms_delay < DELAY_MIN){
+  //    delay_increment = -1*delay_increment;
+  //   }
+    
+    if(++head >= NUM_PIXELS) {         // Increment head index.  Off end of strip?
+      head = 0;                       //  Yes, reset head index to start
+  //    if((color >>= 8) == 0)          //  Next color (R->G->B) ... past blue now?
+        color = RANDOM_COLOR ;            //   Yes, reset to red
+        ms_delay = DELAY_MIN;
+    }
+    if(++tail >= NUM_PIXELS) tail = 0; // Increment, reset tail index
   }
-  if(++tail >= NUMPIXELS) tail = 0; // Increment, reset tail index
-  
 }
 
+
+#define UPSCALER  4 //numver of virtual pixels per real pixel
 void loop() {
-//  ColorChaserBasic();
-  StripPropagateBasic();
   
+  static int counter = 0;
+  //this is our array of pixels that is manupulated and then sent out
+  int pixels_arr[NUM_PIXELS];
+  int virtual_arr[NUM_PIXELS * UPSCALER];
+
+//  ColorChaserBasic();
+
+
+  StripPropagateBasic(pixels_arr);
+  if(counter++ >=COUNTER_MAX ) {
+    InitiatePulse(pixels_arr, 2);
+    counter = random(COUNTER_MAX);
+  }
+//  ms_delay = UpdateDelay(ms_delay);
+
+  sendPixelArray(pixels_arr);
+  delay(ms_delay); //pause between loops
+  ms_delay = UpdateDelay(ms_delay);
+  delay(ms_delay);
 }
