@@ -4,7 +4,7 @@
 // and blue and to forward data down the line.  By limiting the number
 // and color of LEDs, it's reasonably safe to power a couple meters off
 // the Arduino's 5V pin.  DON'T try that with other code!
-
+#include<stdio.h>
 #include <Adafruit_DotStar.h>
 // Because conditional #includes don't work w/Arduino sketches...
 #include <SPI.h>         // COMMENT OUT THIS LINE FOR GEMMA OR TRINKET
@@ -12,6 +12,7 @@
 
 #define NUM_PIXELS 26 // Number of LEDs in strip
 //#define LED_PIN 13
+#define MAX_RAND 6
 
 #define RANDOM_COLOR { random(0xAAFFCC)}
 
@@ -41,7 +42,7 @@ void setup() {
   strip.show();  // Turn all LEDs off ASAP
 }
 
-// Runs 10 LEDs at a time along strip, cycling through red, green and blue.
+// Runs 10 LEDs at a time auint32_t strip, cycling through red, green and blue.
 // This requires about 200 mA for all the 'on' pixels + 1 mA per 'off' pixel.
 int      head  = 0, tail = 1-NUM_PIXELS; // Index of first 'on' and 'off' pixels
 uint32_t color = 0xFF0000;      // 'On' color (starts red)
@@ -52,8 +53,8 @@ int ms_delay = ((DELAY_MAX - DELAY_MIN) / 2 ) + DELAY_MIN;
 int delay_increment = (DELAY_MAX - DELAY_MIN) / NUM_PIXELS;
 
 
-void sendPixelArray(int * send_arr){
-  static int curr_pixels[NUM_PIXELS];
+void sendPixelArray(uint32_t * send_arr){
+  static uint32_t curr_pixels[NUM_PIXELS];
   //loop over all pixels in array
   for (int i = 0; i < NUM_PIXELS; i++){
     //if pixel changed, then update it and update our static array
@@ -65,25 +66,48 @@ void sendPixelArray(int * send_arr){
   strip.show();                     // Refresh strip
 }
 
+void printHex(uint32_t val){
+  char charVal[6];
+  sprintf(charVal, "%06X", val);
+  Serial.println(charVal);
+}
+
 //returns and integer color
-int averagePixels(int* arr_in , int num_pixels){
-  int ave_R= 0;
-  int ave_B =0;
-  int ave_G = 0;
+uint32_t averagePixels(uint32_t* arr_in , long num_pixels){
+  uint32_t ave_R= 0;
+  uint32_t ave_B =0;
+  uint32_t ave_G = 0;
+  uint32_t temp;
   for(int j = 0; j < num_pixels; j++){
-    ave_R += ( arr_in[ j ] ) & 0xFF0000 ;
-    ave_G += ( arr_in[ j ] ) & 0x00FF00 ;
-    ave_B += ( arr_in[ j ] ) & 0x0000FF ;
+//    ave_R += ( arr_in[ j ]  & 0xFF0000 )>>16;
+//    ave_G += ( arr_in[ j ]  & 0x00FF00 )>>8;
+    temp = arr_in[ j ] ;
+    temp = temp & 0x0000FF;
+    ave_B += temp; 
+    temp = arr_in[ j ] ;
+    temp = temp & 0x00FF00;
+    ave_G += temp; 
+    temp = arr_in[ j ] ;
+    temp = temp & 0xFF0000;
+    ave_R += temp; 
   }
+//  Serial.println("break");
   ave_R /= num_pixels;
   ave_G /= num_pixels;
   ave_B /= num_pixels;
-  return ave_R + ave_G + ave_B;
+//  ave_R = ave_R << 16;
+//  ave_G = ave_G << 8;
+  ave_R &= 0xFF0000;
+  ave_G &= 0x00FF00;
+  ave_B &= 0x0000FF;
+  temp = ave_R + ave_G + ave_B;
+
+  return temp; 
 }
 
-void AveDownSampleArrays( int * virt_arr, int * real_arr, int pixel_scaling, int real_len){
+void AveDownSampleArrays( uint32_t * virt_arr, uint32_t * real_arr, int pixel_scaling, int real_len){
    int j;
-   int ave;
+   uint32_t ave;
    int offset;
    //loop through our virtual array
   for (int i = 0; i < real_len; i++){
@@ -106,8 +130,8 @@ int UpdateDelay(int loc_delay){
 }
 
 //This drops a pulse into the strip
-void InitiatePulse( int* arr, int num_pixels){
-  int color = RANDOM_COLOR;
+void InitiatePulse( uint32_t* arr, int num_pixels){
+  uint32_t color = RANDOM_COLOR;
   for(int i = 0; i < num_pixels; i++){
     arr[i] = color;
   }
@@ -115,9 +139,9 @@ void InitiatePulse( int* arr, int num_pixels){
 
 #define COUNTER_MAX 6
 //This just moves the pixels down the array 
-void StripPropagateBasic(int* arr){
+void StripPropagateBasic(uint32_t* arr, int len){
     //move the entire array up one
-  for(int i = NUM_PIXELS-1; i >0; i--){
+  for(int i = len-1; i >0; i--){
     arr[i] = arr[i-1];
   }
  arr[0] = 0; //clear out the 0th pixel
@@ -154,26 +178,27 @@ void ColorChaserBasic(){
 }
 
 
-#define UPSCALER  4 //numver of virtual pixels per real pixel
+#define UPSCALER  2 //numver of virtual pixels per real pixel
 void loop() {
   
   static int counter = 0;
   //this is our array of pixels that is manupulated and then sent out
-  int pixels_arr[NUM_PIXELS];
-  int virtual_arr[NUM_PIXELS * UPSCALER];
+  static uint32_t pixels_arr[NUM_PIXELS];
+  static uint32_t virtual_arr[NUM_PIXELS * UPSCALER];
 
 //  ColorChaserBasic();
 
 
-  StripPropagateBasic(pixels_arr);
-  if(counter++ >=COUNTER_MAX ) {
-    InitiatePulse(pixels_arr, 2);
-    counter = random(COUNTER_MAX);
+  StripPropagateBasic(virtual_arr, NUM_PIXELS * UPSCALER);
+  if(counter++ >=UPSCALER*2 ) {
+    InitiatePulse(virtual_arr, 2);
+//    counter = random(COUNTER_MAX);
+    counter = 0;
   }
+  AveDownSampleArrays( virtual_arr, pixels_arr,UPSCALER, NUM_PIXELS);
 //  ms_delay = UpdateDelay(ms_delay);
 
   sendPixelArray(pixels_arr);
+//  ms_delay = UpdateDelay(ms_delay);
   delay(ms_delay); //pause between loops
-  ms_delay = UpdateDelay(ms_delay);
-  delay(ms_delay);
 }
