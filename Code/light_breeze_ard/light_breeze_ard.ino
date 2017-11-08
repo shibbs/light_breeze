@@ -85,23 +85,18 @@ uint32_t averagePixels(uint32_t* arr_in , long num_pixels){
     temp = temp & 0x0000FF;
     ave_B += temp; 
     temp = arr_in[ j ] ;
-    temp = temp & 0x00FF00;
+    temp = (temp & 0x00FF00 )>>8;
     ave_G += temp; 
     temp = arr_in[ j ] ;
-    temp = temp & 0xFF0000;
+    temp = (temp & 0xFF0000)>>16;
     ave_R += temp; 
   }
-//  Serial.println("break");
   ave_R /= num_pixels;
   ave_G /= num_pixels;
   ave_B /= num_pixels;
-//  ave_R = ave_R << 16;
-//  ave_G = ave_G << 8;
-  ave_R &= 0xFF0000;
-  ave_G &= 0x00FF00;
-  ave_B &= 0x0000FF;
+  ave_R = ave_R <<16;
+  ave_B = ave_B <<8;
   temp = ave_R + ave_G + ave_B;
-
   return temp; 
 }
 
@@ -133,7 +128,7 @@ int UpdateDelay(int loc_delay){
 void InitiatePulse( uint32_t* arr, int num_pixels){
   uint32_t color = RANDOM_COLOR;
   for(int i = 0; i < num_pixels; i++){
-    arr[i] = color;
+    arr[i] += color;
   }
 }
 
@@ -178,7 +173,7 @@ void ColorChaserBasic(){
 }
 
 
-#define UPSCALER  2 //numver of virtual pixels per real pixel
+#define UPSCALER  4 //numver of virtual pixels per real pixel
 void loop() {
   
   static int counter = 0;
@@ -190,9 +185,9 @@ void loop() {
 
 
   StripPropagateBasic(virtual_arr, NUM_PIXELS * UPSCALER);
-  if(counter++ >=UPSCALER*2 ) {
-    InitiatePulse(virtual_arr, 2);
-//    counter = random(COUNTER_MAX);
+  if(counter++ >=UPSCALER*3 ) {
+    InitiatePulse(virtual_arr,3);
+    counter = random(COUNTER_MAX);
     counter = 0;
   }
   AveDownSampleArrays( virtual_arr, pixels_arr,UPSCALER, NUM_PIXELS);
