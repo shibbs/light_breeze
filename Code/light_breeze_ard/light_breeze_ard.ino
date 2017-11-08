@@ -47,8 +47,8 @@ void setup() {
 int      head  = 0, tail = 1-NUM_PIXELS; // Index of first 'on' and 'off' pixels
 uint32_t color = 0xFF0000;      // 'On' color (starts red)
 
-#define DELAY_MAX   100
-#define DELAY_MIN   5
+#define DELAY_MAX   120
+#define DELAY_MIN   10
 int ms_delay = ((DELAY_MAX - DELAY_MIN) / 2 ) + DELAY_MIN;
 int delay_increment = (DELAY_MAX - DELAY_MIN) / NUM_PIXELS;
 
@@ -85,23 +85,18 @@ uint32_t averagePixels(uint32_t* arr_in , long num_pixels){
     temp = temp & 0x0000FF;
     ave_B += temp; 
     temp = arr_in[ j ] ;
-    temp = temp & 0x00FF00;
+    temp = (temp & 0x00FF00 )>>8;
     ave_G += temp; 
     temp = arr_in[ j ] ;
-    temp = temp & 0xFF0000;
+    temp = (temp & 0xFF0000)>>16;
     ave_R += temp; 
   }
-//  Serial.println("break");
   ave_R /= num_pixels;
   ave_G /= num_pixels;
   ave_B /= num_pixels;
-//  ave_R = ave_R << 16;
-//  ave_G = ave_G << 8;
-  ave_R &= 0xFF0000;
-  ave_G &= 0x00FF00;
-  ave_B &= 0x0000FF;
+  ave_R = ave_R <<16;
+  ave_B = ave_B <<8;
   temp = ave_R + ave_G + ave_B;
-
   return temp; 
 }
 
@@ -121,7 +116,8 @@ int UpdateDelay(int loc_delay){
   static int loc_delay_increment = 2;
    loc_delay += loc_delay_increment;
    if(loc_delay > DELAY_MAX){
-    loc_delay_increment = -1*loc_delay_increment;
+//    loc_delay_increment = -1*loc_delay_increment;
+    loc_delay = DELAY_MIN;
    }else if(loc_delay < DELAY_MIN){
     loc_delay_increment = -1*loc_delay_increment;
    }
@@ -133,7 +129,7 @@ int UpdateDelay(int loc_delay){
 void InitiatePulse( uint32_t* arr, int num_pixels){
   uint32_t color = RANDOM_COLOR;
   for(int i = 0; i < num_pixels; i++){
-    arr[i] = color;
+    arr[i] += color;
   }
 }
 
@@ -179,26 +175,33 @@ void ColorChaserBasic(){
 
 
 #define UPSCALER  2 //numver of virtual pixels per real pixel
+#define PULSE_SIZE  5
 void loop() {
   
   static int counter = 0;
   //this is our array of pixels that is manupulated and then sent out
   static uint32_t pixels_arr[NUM_PIXELS];
   static uint32_t virtual_arr[NUM_PIXELS * UPSCALER];
+  static int ms_elapsed_since_delay = 0;
 
 //  ColorChaserBasic();
 
 
   StripPropagateBasic(virtual_arr, NUM_PIXELS * UPSCALER);
-  if(counter++ >=UPSCALER*2 ) {
-    InitiatePulse(virtual_arr, 2);
-//    counter = random(COUNTER_MAX);
+  if(counter++ >=PULSE_SIZE*3 ) {
+    InitiatePulse(virtual_arr,PULSE_SIZE);
+    counter = random(PULSE_SIZE*3);
     counter = 0;
   }
   AveDownSampleArrays( virtual_arr, pixels_arr,UPSCALER, NUM_PIXELS);
 //  ms_delay = UpdateDelay(ms_delay);
 
-  sendPixelArray(pixels_arr);
-//  ms_delay = UpdateDelay(ms_delay);
+  sendPixelArray(pixels_arr);;
+  ms_elapsed_since_delay += ms_delay;
+  if(ms_elapsed_since_delay >100){
+    ms_elapsed_since_delay = 0;
+    ms_delay = UpdateDelay(ms_delay);
+  }
+
   delay(ms_delay); //pause between loops
 }
